@@ -1,5 +1,6 @@
 /*
     game: tic tac toe
+    algorithm: min-max (optimal)
 */
 
 #include <bits/stdc++.h>
