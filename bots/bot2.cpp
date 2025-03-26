@@ -1,19 +1,24 @@
 #include <bits/stdc++.h>
-#include <immintrin.h>
 using namespace std;
 
 /*
     game: ultimate tic tac toe
-    algoright: flat mc 
-    performacne: 575
+    algoright: mcts
+    performacne: ?
 
 */
 
 //! consts
 constexpr bool debug = false;
 constexpr bool test = false;
-constexpr int_fast32_t no_sim = 5;
 constexpr int_fast32_t inf = 1e9 + 7;
+constexpr int_fast32_t max_tree_size = 15'000;
+
+struct struct_node{
+    int_fast32_t win;
+    int_fast32_t vis;
+    int_fast32_t moves[3];
+};
 
 //! enums
 enum enum_player{ 
@@ -59,6 +64,15 @@ namespace utils{
         return (double) random() / UINT32_MAX < prob;
     }
 };
+
+namespace mcts{
+    // data
+    struct_node tree[max_tree_size];
+    
+
+
+};
+
 
 //! pos
 struct struct_pos{
@@ -193,39 +207,86 @@ static inline void generate_all_moves(uint_fast32_t next_ultimate_rows, uint_fas
     }
 }
 
-__attribute__((target("bmi2")))
 static inline int_fast32_t simulate_till_end(int player, uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols){
-    int ok_moves_cnt;
-    array<uint_fast32_t, 3> ok_moves;
     array<uint_fast32_t, 3> moves;
     generate_all_moves(next_ultimate_rows, next_ultimate_cols, moves);
 
     while(moves[0] | moves[1] | moves[2]){
-        // get ok moves
-        ok_moves_cnt = 0;
-        if(moves[0]) ok_moves[ok_moves_cnt++] = 0;
-        if(moves[1]) ok_moves[ok_moves_cnt++] = 1;
-        if(moves[2]) ok_moves[ok_moves_cnt++] = 2;
-
-        // get random move
-        const int_fast32_t board_idx = ok_moves[utils::random() % ok_moves_cnt];
-        const int_fast32_t move = _pdep_u32(1u << (utils::random() % popcount(moves[board_idx])), moves[board_idx]);
-        const int_fast32_t log2move = __builtin_ctz(move);
+        uint_fast32_t a = popcount(moves[0]), b = popcount(moves[1]), c = popcount(moves[2]);
+        uint_fast32_t sum_of_moves = a + b + c;
+        uint_fast32_t choosen_move = utils::random() % sum_of_moves + 1; 
         
+        uint_fast32_t start = (next_ultimate_cols == all ? 0 : next_ultimate_cols * 9), end = (next_ultimate_cols == all ? 27 : (next_ultimate_cols + 1) * 9);
+        if(choosen_move <= a){
+            // get choosen_move'th bit
+            for(; start < end; start++){
+                if(!(moves[0] & (1 << start))) continue;
 
-        // update board
-        auto &ultimate_board = (player == me ? board::copy_ultimate_board_me[board_idx] : board::copy_ultimate_board_foe[board_idx]);
-        auto &main_board = (player == me ? board::copy_main_board_me : board::copy_main_board_foe);
+                if(choosen_move == 1){
+                    // adjust the board
+                    auto &board = (player == me ? board::copy_ultimate_board_me[0] : board::copy_ultimate_board_foe[0]);
+                    auto &board_main = (player == me ? board::copy_main_board_me : board::copy_main_board_foe);
 
-        ultimate_board |= (1 << log2move);
-        if(board::check_for_copy_win(player, board_idx, log2move / 9)){
-            main_board |= (1 << (board_idx * 3 + log2move / 9));
+                    board |= (1 << start);
+                    if(board::check_for_copy_win(player, 0, start / 9)){
+                        board_main |= (1 << (start / 9));
+                    }
+
+                    tie(next_ultimate_rows, next_ultimate_cols) = get_next_board_copy(start);
+                    break;
+                } else{
+                    choosen_move--;
+                }
+            }
+        } else if(choosen_move - a <= b){
+            choosen_move -= a;
+
+            // get choosen_move'th bit
+            for(; start < end; start++){
+                if(!(moves[1] & (1 << start))) continue;
+
+                if(choosen_move == 1){
+                    // adjust the board
+                    auto &board = (player == me ? board::copy_ultimate_board_me[1] : board::copy_ultimate_board_foe[1]);
+                    auto &board_main = (player == me ? board::copy_main_board_me : board::copy_main_board_foe);
+
+                    board |= (1 << start);
+                    if(board::check_for_copy_win(player, 1, start / 9)){
+                        board_main |= (1 << (3 + start / 9));
+                    }
+                    tie(next_ultimate_rows, next_ultimate_cols) = get_next_board_copy(start);
+                    break;
+                } else{
+                    choosen_move--;
+                }
+            }
+        } else {
+            choosen_move -= a + b;
+
+            // get choosen_move'th bit
+            for(; start < end; start++){
+                if(!(moves[2] & (1 << start))) continue;
+
+                if(choosen_move == 1){
+                    // adjust the board
+                    auto &board = (player == me ? board::copy_ultimate_board_me[2] : board::copy_ultimate_board_foe[2]);
+                    auto &board_main = (player == me ? board::copy_main_board_me : board::copy_main_board_foe);
+
+                    board |= (1 << start);
+                    if(board::check_for_copy_win(player, 2, start / 9)){
+                        board_main |= (1 << (6 + start / 9));
+                    }
+                    tie(next_ultimate_rows, next_ultimate_cols) = get_next_board_copy(start);
+                    break;
+                } else{
+                    choosen_move--;
+                }
+            }
         }
 
-        tie(next_ultimate_rows, next_ultimate_cols) = get_next_board_copy(log2move);
         generate_all_moves(next_ultimate_rows, next_ultimate_cols, moves);
         player ^= 1;
-    }
+    } 
 
     if(board::winning_board[board::copy_main_board_me]) return 1;
     if(board::winning_board[board::copy_main_board_foe]) return -1;
@@ -285,11 +346,8 @@ static inline pair<uint_fast32_t, uint_fast32_t> get_next_board_copy(uint_fast32
 
 static void make_move(){
     int_fast32_t wins[81] = {0};
-    int debug_cnt = 0;  //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
     while(utils::elapsed_time() < 95'000){
         for(uint_fast32_t i = 0; i < board::no_valid_pos_from_input; i++){
-            debug_cnt += no_sim;
             auto [bit, ultimate_row] = pos_of_coord[board::valid_pos_from_input[i].first][board::valid_pos_from_input[i].second];
             bool main_board_andujst = false;
 
@@ -300,7 +358,6 @@ static void make_move(){
             }
 
             auto [next_ultimate_rows, next_ultimate_cols] = get_next_board(bit);
-            wins[i] = flat_mc(foe, next_ultimate_rows, next_ultimate_cols, no_sim);
 
             // remove adjustments
             board::ultimate_board_me[ultimate_row] ^= 1 << bit;
@@ -309,8 +366,6 @@ static void make_move(){
             }
         }  
     }
-
-    cerr << debug_cnt << endl;
 
     // choose best move
     int best_score = -inf, arg_best_score = 0;

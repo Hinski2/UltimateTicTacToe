@@ -5,7 +5,7 @@ using namespace std;
 /*
     game: ultimate tic tac toe
     algoright: flat mc 
-    performacne: 575
+    performacne: 
 
 */
 
@@ -193,7 +193,6 @@ static inline void generate_all_moves(uint_fast32_t next_ultimate_rows, uint_fas
     }
 }
 
-__attribute__((target("bmi2")))
 static inline int_fast32_t simulate_till_end(int player, uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols){
     int ok_moves_cnt;
     array<uint_fast32_t, 3> ok_moves;
@@ -209,20 +208,18 @@ static inline int_fast32_t simulate_till_end(int player, uint_fast32_t next_ulti
 
         // get random move
         const int_fast32_t board_idx = ok_moves[utils::random() % ok_moves_cnt];
-        const int_fast32_t move = _pdep_u32(1u << (utils::random() % popcount(moves[board_idx])), moves[board_idx]);
-        const int_fast32_t log2move = __builtin_ctz(move);
-        
+        const auto move = _pdep_u32(1u << (utils::random() % popcount(moves[board_idx])), moves[board_idx]);
 
         // update board
         auto &ultimate_board = (player == me ? board::copy_ultimate_board_me[board_idx] : board::copy_ultimate_board_foe[board_idx]);
         auto &main_board = (player == me ? board::copy_main_board_me : board::copy_main_board_foe);
 
-        ultimate_board |= (1 << log2move);
-        if(board::check_for_copy_win(player, board_idx, log2move / 9)){
-            main_board |= (1 << (board_idx * 3 + log2move / 9));
+        ultimate_board |= (1 << move);
+        if(board::check_for_copy_win(player, board_idx, move / 9)){
+            main_board |= (1 << (board_idx * 3 + move / 9));
         }
 
-        tie(next_ultimate_rows, next_ultimate_cols) = get_next_board_copy(log2move);
+        tie(next_ultimate_rows, next_ultimate_cols) = get_next_board_copy(move);
         generate_all_moves(next_ultimate_rows, next_ultimate_cols, moves);
         player ^= 1;
     }
