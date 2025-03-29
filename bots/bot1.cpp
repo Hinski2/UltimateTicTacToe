@@ -2,17 +2,21 @@
 #include <immintrin.h>
 using namespace std;
 
+#pragma GCC optimize("Ofast,inline,tracer")
+#pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops") 
+#pragma GCC target("arch=haswell,tune=haswell")
+
 /*
     game: ultimate tic tac toe
     algoright: flat mc 
-    performacne: 575
+    performacne: 1 silver league
 
 */
 
 //! consts
-constexpr bool debug = false;
-constexpr bool test = false;
-constexpr int_fast32_t no_sim = 5;
+constexpr bool debug = true;
+constexpr bool test = true;
+constexpr int_fast32_t no_sim = 15;
 constexpr int_fast32_t inf = 1e9 + 7;
 
 //! enums
@@ -285,11 +289,9 @@ static inline pair<uint_fast32_t, uint_fast32_t> get_next_board_copy(uint_fast32
 
 static void make_move(){
     int_fast32_t wins[81] = {0};
-    int debug_cnt = 0;  //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     while(utils::elapsed_time() < 95'000){
         for(uint_fast32_t i = 0; i < board::no_valid_pos_from_input; i++){
-            debug_cnt += no_sim;
             auto [bit, ultimate_row] = pos_of_coord[board::valid_pos_from_input[i].first][board::valid_pos_from_input[i].second];
             bool main_board_andujst = false;
 
@@ -300,7 +302,7 @@ static void make_move(){
             }
 
             auto [next_ultimate_rows, next_ultimate_cols] = get_next_board(bit);
-            wins[i] = flat_mc(foe, next_ultimate_rows, next_ultimate_cols, no_sim);
+            wins[i] += flat_mc(foe, next_ultimate_rows, next_ultimate_cols, no_sim);
 
             // remove adjustments
             board::ultimate_board_me[ultimate_row] ^= 1 << bit;
@@ -309,8 +311,6 @@ static void make_move(){
             }
         }  
     }
-
-    cerr << debug_cnt << endl;
 
     // choose best move
     int best_score = -inf, arg_best_score = 0;
@@ -322,5 +322,10 @@ static void make_move(){
     }
 
     // make move
+    auto [bit, ultiamte_row] = pos_of_coord[board::valid_pos_from_input[arg_best_score].first][board::valid_pos_from_input[arg_best_score].second];
+    board::ultimate_board_me[ultiamte_row] |= (1 << bit);
+    if(board::check_for_win(me, ultiamte_row, bit / 9)){
+        board::main_baord_me |= (1 << (3 * ultiamte_row + bit / 9));
+    }
     cout << board::valid_pos_from_input[arg_best_score].first << ' ' << board::valid_pos_from_input[arg_best_score].second << endl;
 }

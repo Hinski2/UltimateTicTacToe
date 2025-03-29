@@ -2,15 +2,19 @@
 #include <immintrin.h>
 using namespace std;
 
+#pragma GCC optimize("Ofast,inline,tracer")
+#pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops") 
+#pragma GCC target("arch=haswell,tune=haswell")
+
 /*
     game: ultimate tic tac toe
     algoright: flat mc 
-    performacne: 
+    performacne: 2 silver league
 
 */
 
 //! consts
-constexpr bool debug = false;
+constexpr bool debug = true;
 constexpr bool test = false;
 constexpr int_fast32_t no_sim = 5;
 constexpr int_fast32_t inf = 1e9 + 7;
@@ -193,6 +197,7 @@ static inline void generate_all_moves(uint_fast32_t next_ultimate_rows, uint_fas
     }
 }
 
+__attribute__((target("bmi2")))
 static inline int_fast32_t simulate_till_end(int player, uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols){
     int ok_moves_cnt;
     array<uint_fast32_t, 3> ok_moves;
@@ -208,18 +213,20 @@ static inline int_fast32_t simulate_till_end(int player, uint_fast32_t next_ulti
 
         // get random move
         const int_fast32_t board_idx = ok_moves[utils::random() % ok_moves_cnt];
-        const auto move = _pdep_u32(1u << (utils::random() % popcount(moves[board_idx])), moves[board_idx]);
+        const int_fast32_t move = _pdep_u32(1u << (utils::random() % popcount(moves[board_idx])), moves[board_idx]);
+        const int_fast32_t log2move = __builtin_ctz(move);
+        
 
         // update board
         auto &ultimate_board = (player == me ? board::copy_ultimate_board_me[board_idx] : board::copy_ultimate_board_foe[board_idx]);
         auto &main_board = (player == me ? board::copy_main_board_me : board::copy_main_board_foe);
 
-        ultimate_board |= (1 << move);
-        if(board::check_for_copy_win(player, board_idx, move / 9)){
-            main_board |= (1 << (board_idx * 3 + move / 9));
+        ultimate_board |= (1 << log2move);
+        if(board::check_for_copy_win(player, board_idx, log2move / 9)){
+            main_board |= (1 << (board_idx * 3 + log2move / 9));
         }
 
-        tie(next_ultimate_rows, next_ultimate_cols) = get_next_board_copy(move);
+        tie(next_ultimate_rows, next_ultimate_cols) = get_next_board_copy(log2move);
         generate_all_moves(next_ultimate_rows, next_ultimate_cols, moves);
         player ^= 1;
     }
@@ -297,7 +304,7 @@ static void make_move(){
             }
 
             auto [next_ultimate_rows, next_ultimate_cols] = get_next_board(bit);
-            wins[i] = flat_mc(foe, next_ultimate_rows, next_ultimate_cols, no_sim);
+            wins[i] += flat_mc(foe, next_ultimate_rows, next_ultimate_cols, no_sim);
 
             // remove adjustments
             board::ultimate_board_me[ultimate_row] ^= 1 << bit;
@@ -307,7 +314,7 @@ static void make_move(){
         }  
     }
 
-    cerr << debug_cnt << endl;
+    if(test) cerr << debug_cnt << endl;
 
     // choose best move
     int best_score = -inf, arg_best_score = 0;
@@ -319,5 +326,10 @@ static void make_move(){
     }
 
     // make move
+    auto [bit, ultiamte_row] = pos_of_coord[board::valid_pos_from_input[arg_best_score].first][board::valid_pos_from_input[arg_best_score].second];
+    board::ultimate_board_me[ultiamte_row] |= (1 << bit);
+    if(board::check_for_win(me, ultiamte_row, bit / 9)){
+        board::main_baord_me |= (1 << (3 * ultiamte_row + bit / 9));
+    }
     cout << board::valid_pos_from_input[arg_best_score].first << ' ' << board::valid_pos_from_input[arg_best_score].second << endl;
 }
