@@ -2,3 +2,5 @@
 test
 test.py
 test.cpp
+*.in
+*.out

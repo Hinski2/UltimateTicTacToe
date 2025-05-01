@@ -5,19 +5,19 @@ using namespace std;
 /*
     game: ultimate tic tac toe
     algoright: mcts
-    performacne: ?
+    performacne: 278 gold league
 
 */
 
-// #pragma GCC optimize("Ofast,inline,tracer")
-// #pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops") 
+#pragma GCC optimize("Ofast,inline,tracer")
+#pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops") 
 
 //! consts
-constexpr bool debug = true;
+constexpr bool debug = false;
 constexpr bool test = false;
 constexpr int_fast32_t no_sim = 5;
 constexpr int_fast32_t inf = 1e9 + 7;
-constexpr int_fast32_t max_nodes = 50'000;
+constexpr int_fast32_t max_nodes = 100'000;
 
 //! enums
 enum enum_player{ 
@@ -104,7 +104,7 @@ constexpr pair<int, int> coord_of_pos[3][27] = { // {ultimate_row, bit} -> {row,
 };
 
 //! node
-struct struct_node{
+struct Node{
     static int_fast32_t idx;
     static int_fast32_t free_idx;
 
@@ -121,11 +121,11 @@ struct struct_node{
 
 } nodes[max_nodes];
 
-int_fast32_t struct_node::idx = 0;
-int_fast32_t struct_node::free_idx = 0;
+int_fast32_t Node::idx = 0;
+int_fast32_t Node::free_idx = 0;
 
 //! board
-struct struct_board{
+struct Board{
     uint_fast32_t ultimate_board[3];
     uint_fast16_t main_board;
 
@@ -153,6 +153,7 @@ static inline void add_son(uint_fast32_t &moves, int_fast32_t ultimate_row, int_
 
 // moves utils
 static inline void generate_all_moves(uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols, array<uint_fast32_t, 3> &moves);
+static inline void generate_all_moves_copy(uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols, array<uint_fast32_t, 3> &moves);
 
 // making moves
 static inline void make_move();
@@ -160,10 +161,10 @@ static inline pair<uint_fast32_t, uint_fast32_t> get_next_board_copy(uint_fast32
 static inline pair<uint_fast32_t, uint_fast32_t> get_next_board(uint_fast32_t bit);
 
 // bots
-static inline int_fast32_t flat_mc(int player, uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols, uint_fast32_t no_sim);
+static inline int_fast32_t flat_mc(int player, uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols);
 static inline int_fast32_t simulate_till_end(int player, uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols);
 
-static inline double uct(int_fast32_t idx);
+static inline double uct(int_fast32_t idx, double c);
 static inline void select();
 static inline pair<int_fast32_t, int_fast32_t> expand(); // [win, vis];
 static inline void backtrack(int_fast32_t win, int_fast32_t vis); 
@@ -178,9 +179,10 @@ int main(){
     }
 }
 
-static inline double uct(int_fast32_t idx){
+static inline double uct(int_fast32_t idx, double c){
     //! DO NOT INVOKE THIS FUNCTION ON A LEAF
-    return (double) nodes[idx].wins / nodes[idx].vis + 1.41 * sqrt(log(nodes[nodes[idx].priev].vis) / nodes[idx].vis);
+    double wins = nodes[idx].player == me ? nodes[idx].wins : nodes[idx].vis - nodes[idx].wins;
+    return (double) wins / nodes[idx].vis + c / sqrt(nodes[idx].vis);
 }
 
 static inline void initialize(){
@@ -188,12 +190,12 @@ static inline void initialize(){
 
 static inline void get_input(){
     // setup root
-    struct_node::idx = 0;
-    struct_node::free_idx = 1;
+    Node::idx = 0;
+    Node::free_idx = 1;
 
     nodes[0].priev = 0;
     nodes[0].wins = nodes[0].vis = 0;
-    nodes[0].bit = nodes[0].ultimate_row = nodes[0].main_bit = 0;
+    nodes[0].bit = nodes[0].ultimate_row = nodes[0].main_bit = -1;
     nodes[0].player = foe;
     nodes[0].offset = 1; // first childre in 1
 
@@ -228,17 +230,31 @@ static inline void get_input(){
     }
 }
 
-static inline void generate_all_moves(uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols, array<uint_fast32_t, 3> &moves){
+static inline void generate_all_moves_copy(uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols, array<uint_fast32_t, 3> &moves){
     moves = {0, 0, 0};
     uint_fast32_t start = (next_ultimate_rows == all ? 0 : next_ultimate_rows), end = (next_ultimate_rows == all ? 2 : next_ultimate_rows);
     for(; start <= end; start++){
         moves[start] = ~(board[me].copy_ultimate_board[start] | board[foe].copy_ultimate_board[start]);
 
-        if((board[me].copy_main_board | board[foe].copy_main_board) & (1 << (start * 3))) moves[start] &= struct_board::not_board_mask[0];
-        if((board[me].copy_main_board | board[foe].copy_main_board) & (1 << (start * 3 + 1))) moves[start] &= struct_board::not_board_mask[1];
-        if((board[me].copy_main_board | board[foe].copy_main_board) & (1 << (start * 3 + 2))) moves[start] &= struct_board::board_mask[2];
+        if((board[me].copy_main_board | board[foe].copy_main_board) & (1 << (start * 3))) moves[start] &= Board::not_board_mask[0];
+        if((board[me].copy_main_board | board[foe].copy_main_board) & (1 << (start * 3 + 1))) moves[start] &= Board::not_board_mask[1];
+        if((board[me].copy_main_board | board[foe].copy_main_board) & (1 << (start * 3 + 2))) moves[start] &= Board::not_board_mask[2];
 
-        moves[start] &= struct_board::board_mask[next_ultimate_cols];
+        moves[start] &= Board::board_mask[next_ultimate_cols];
+    }
+}
+
+static inline void generate_all_moves(uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols, array<uint_fast32_t, 3> &moves){
+    moves = {0, 0, 0};
+    uint_fast32_t start = (next_ultimate_rows == all ? 0 : next_ultimate_rows), end = (next_ultimate_rows == all ? 2 : next_ultimate_rows);
+    for(; start <= end; start++){
+        moves[start] = ~(board[me].ultimate_board[start] | board[foe].ultimate_board[start]);
+
+        if((board[me].main_board | board[foe].main_board) & (1 << (start * 3))) moves[start] &= Board::not_board_mask[0];
+        if((board[me].main_board | board[foe].main_board) & (1 << (start * 3 + 1))) moves[start] &= Board::not_board_mask[1];
+        if((board[me].main_board | board[foe].main_board) & (1 << (start * 3 + 2))) moves[start] &= Board::not_board_mask[2];
+
+        moves[start] &= Board::board_mask[next_ultimate_cols];
     }
 }
 
@@ -247,7 +263,7 @@ static inline int_fast32_t simulate_till_end(int player, uint_fast32_t next_ulti
     int ok_moves_cnt;
     array<uint_fast32_t, 3> ok_moves;
     array<uint_fast32_t, 3> moves;
-    generate_all_moves(next_ultimate_rows, next_ultimate_cols, moves);
+    generate_all_moves_copy(next_ultimate_rows, next_ultimate_cols, moves);
 
     while(moves[0] | moves[1] | moves[2]){
         // get ok moves
@@ -267,16 +283,16 @@ static inline int_fast32_t simulate_till_end(int player, uint_fast32_t next_ulti
         }
 
         tie(next_ultimate_rows, next_ultimate_cols) = get_next_board_copy(log2move);
-        generate_all_moves(next_ultimate_rows, next_ultimate_cols, moves);
+        generate_all_moves_copy(next_ultimate_rows, next_ultimate_cols, moves);
         player ^= 1;
     }
 
-    if(struct_board::winning_board[board[me].copy_main_board]) return 1;
-    if(struct_board::winning_board[board[foe].copy_main_board]) return -1;
+    if(Board::winning_board[board[me].copy_main_board]) return 1;
+    if(Board::winning_board[board[foe].copy_main_board]) return -1;
     return __builtin_popcountll(board[me].copy_main_board) > __builtin_popcountll(board[foe].copy_main_board);
 }
 
-static int_fast32_t flat_mc(int player, uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols, uint_fast32_t no_sim){
+static int_fast32_t flat_mc(int player, uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols){
     int_fast32_t wins = 0;
     
     for(uint_fast32_t i = 0; i < no_sim; i++){
@@ -302,11 +318,11 @@ static inline pair<uint_fast32_t, uint_fast32_t> get_next_board(uint_fast32_t bi
     uint_fast32_t next_ultimate_col = bit % 3;
 
     // if subgame is finished
-    if(board[foe].main_board & (next_ultiamte_row * 3 + next_ultimate_col) or board[me].main_board & (next_ultiamte_row * 3 + next_ultimate_col))
+    if(board[foe].main_board & (1 << (next_ultiamte_row * 3 + next_ultimate_col)) or board[me].main_board & (1 << (next_ultiamte_row * 3 + next_ultimate_col)))
         return {all, all};
 
     // if there is still palce
-    if((~(board[foe].ultimate_board[next_ultiamte_row] | board[me].ultimate_board[next_ultiamte_row])) & struct_board::board_mask[next_ultimate_col]) 
+    if((~(board[foe].ultimate_board[next_ultiamte_row] | board[me].ultimate_board[next_ultiamte_row])) & Board::board_mask[next_ultimate_col]) 
         return {next_ultiamte_row, next_ultimate_col};
     
     return {all, all};
@@ -321,80 +337,87 @@ static inline pair<uint_fast32_t, uint_fast32_t> get_next_board_copy(uint_fast32
         return {all, all};
 
     // if there is still palce
-    if((~(board[foe].copy_ultimate_board[next_ultiamte_row] | board[me].copy_ultimate_board[next_ultiamte_row])) & struct_board::board_mask[next_ultimate_col]) 
+    if((~(board[foe].copy_ultimate_board[next_ultiamte_row] | board[me].copy_ultimate_board[next_ultiamte_row])) & Board::board_mask[next_ultimate_col]) 
         return {next_ultiamte_row, next_ultimate_col};
     
     return {all, all};
 }
 
 static inline void select(){
-    while(nodes[struct_node::idx].size != 0){
-        double best_uct = -1;
+    while(nodes[Node::idx].size != 0){
+        double best_uct = -inf;
         int_fast32_t best_arg = 0;
-        
-        for(int_fast32_t i = nodes[struct_node::idx].offset; i < nodes[struct_node::idx].offset + nodes[struct_node::idx].size; i++){
-            double UCT = uct(i);
+
+        const double c = 1 * sqrt(log(nodes[Node::idx].vis));
+        for(int_fast32_t i = nodes[Node::idx].offset; i < nodes[Node::idx].offset + nodes[Node::idx].size; i++){
+            double UCT = uct(i, c);
+
             if(UCT > best_uct){
                 best_uct = UCT;
                 best_arg = i;
             }
         }
 
-        struct_node::idx = best_arg;
-        board[me].main_board |= nodes[struct_node::idx].main_bit;
-        board[me].ultimate_board[nodes[struct_node::idx].ultimate_row] |= nodes[struct_node::idx].bit;
+        Node::idx = best_arg;
+        if(nodes[Node::idx].main_bit != -1) board[nodes[best_arg].player].main_board |= (1 << nodes[Node::idx].main_bit);
+        board[nodes[best_arg].player].ultimate_board[nodes[Node::idx].ultimate_row] |= (1 << nodes[Node::idx].bit);
     }
 }
 
 static inline void backtrack(int_fast32_t win, int_fast32_t vis){ 
-    while(struct_node::idx){
-        auto &v = nodes[struct_node::idx];
-        nodes[v.priev].vis += vis;
+    while(Node::idx){
+        auto &v = nodes[Node::idx];
+
         nodes[v.priev].wins += win;
+        nodes[v.priev].vis += vis;
 
-        board[v.player].ultimate_board[v.ultimate_row] ^= v.bit;
-        if(v.main_bit) board[v.player].main_board ^= v.main_bit;
+        board[v.player].ultimate_board[v.ultimate_row] ^= (1 << v.bit);
+        if(v.main_bit != -1) board[v.player].main_board ^= (1 << v.main_bit); 
 
-        struct_node::idx = v.priev;
+        Node::idx = v.priev;
     }
 }
 
 static inline void add_son(uint_fast32_t &moves, int_fast32_t ultimate_row, int_fast32_t player){
     int_fast32_t bit = __builtin_ctz(moves);
-    nodes[struct_node::free_idx].priev = struct_node::idx;
-    nodes[struct_node::free_idx].bit = bit;
-    nodes[struct_node::free_idx].ultimate_row = ultimate_row;
-    nodes[struct_node::free_idx].size = 0;
-    nodes[struct_node::free_idx].player = player;
-    nodes[struct_node::free_idx].wins = nodes[struct_node::free_idx].vis = 0;
+    nodes[Node::free_idx].priev = Node::idx;
+    nodes[Node::free_idx].bit = bit;
+    nodes[Node::free_idx].ultimate_row = ultimate_row;
+    nodes[Node::free_idx].size = 0;
+    nodes[Node::free_idx].player = player;
+    nodes[Node::free_idx].wins = nodes[Node::free_idx].vis = 0;
 
     board[player].ultimate_board[ultimate_row] |= (1 << bit);
 
-    nodes[struct_node::free_idx].main_bit = board[player].check_for_win(ultimate_row, bit / 9) ? 1 << ((3 * ultimate_row) + bit / 9) : 0;
-    if(nodes[struct_node::free_idx].main_bit) board[player].main_board |= nodes[struct_node::free_idx].main_bit; 
+    nodes[Node::free_idx].main_bit = board[player].check_for_win(ultimate_row, bit / 9) ? (3 * ultimate_row) + bit / 9 : -1;
+    if(nodes[Node::free_idx].main_bit != -1) board[player].main_board |= (1 << nodes[Node::free_idx].main_bit);
 
     auto [next_ultimate_rows, next_ultimate_cols] = get_next_board(bit);
-    nodes[struct_node::free_idx].vis = no_sim;
-    nodes[struct_node::free_idx].wins = flat_mc(player^1, next_ultimate_rows, next_ultimate_cols, no_sim);
+    nodes[Node::free_idx].vis = no_sim;
+    nodes[Node::free_idx].wins = flat_mc(player^1, next_ultimate_rows, next_ultimate_cols);
+
 
     board[player].ultimate_board[ultimate_row] ^= (1 << bit);
-    if(nodes[struct_node::free_idx].main_bit) board[player].main_board ^= nodes[struct_node::free_idx].main_bit; 
+    if(nodes[Node::free_idx].main_bit != -1) board[player].main_board ^= (1 << nodes[Node::free_idx].main_bit);
 
-    nodes[struct_node::idx].wins += nodes[struct_node::free_idx].wins;
-    nodes[struct_node::idx].vis += nodes[struct_node::free_idx].vis;
+    nodes[Node::idx].wins += nodes[Node::free_idx].wins;
+    nodes[Node::idx].vis += nodes[Node::free_idx].vis;
 
-    moves ^= bit; 
-    struct_node::free_idx++; 
+    moves ^= (1 << bit); 
+    Node::free_idx++; 
 }
 
 static inline pair<int_fast32_t, int_fast32_t> expand(){
+    int_fast32_t prev_w = nodes[Node::idx].wins;
+    int_fast32_t prev_v = nodes[Node::idx].vis;
+
     array<uint_fast32_t, 3> moves;
-    auto [next_ultimate_rows, next_ultimate_cols] = get_next_board(nodes[struct_node::idx].bit);
+    auto [next_ultimate_rows, next_ultimate_cols] = get_next_board(nodes[Node::idx].bit);
     generate_all_moves(next_ultimate_rows, next_ultimate_cols, moves);
 
-    int_fast32_t player = nodes[struct_node::idx].player ^ 1;
-    nodes[struct_node::idx].offset = struct_node::free_idx;
-    nodes[struct_node::idx].size = __builtin_popcountll(moves[0]) + __builtin_popcountll(moves[1]) + __builtin_popcountll(moves[2]);
+    int_fast32_t player = nodes[Node::idx].player ^ 1;
+    nodes[Node::idx].offset = Node::free_idx;
+    nodes[Node::idx].size = __builtin_popcountll(moves[0]) + __builtin_popcountll(moves[1]) + __builtin_popcountll(moves[2]);
 
     while(moves[0]){
         add_son(moves[0], 0, player);
@@ -408,38 +431,48 @@ static inline pair<int_fast32_t, int_fast32_t> expand(){
         add_son(moves[2], 2, player);
     }
 
-    if(nodes[struct_node::idx].size == 0){
-        if(struct_board::winning_board[board[me].main_board]) nodes[struct_node::idx].wins += no_sim;
-        else if(struct_board::winning_board[board[foe].main_board]) nodes[struct_node::idx].wins -= no_sim;
-        else nodes[struct_node::idx].wins += no_sim * (__builtin_popcountll(board[me].main_board) > __builtin_popcountll(board[foe].main_board) ? 1 : -1);
+    if(nodes[Node::idx].size == 0){
+        if(Board::winning_board[board[me].main_board]) nodes[Node::idx].wins += no_sim;
+        else if(Board::winning_board[board[foe].main_board]) nodes[Node::idx].wins -= no_sim;
+        else nodes[Node::idx].wins += no_sim * (__builtin_popcountll(board[me].main_board) > __builtin_popcountll(board[foe].main_board) ? 1 : -1);
 
-        nodes[struct_node::idx].vis += no_sim;
+        nodes[Node::idx].vis += no_sim;
     }
 
-    return {nodes[struct_node::idx].wins, nodes[struct_node::idx].vis};
+    return {nodes[Node::idx].wins - prev_w, nodes[Node::idx].vis - prev_v};
 }
 
 static void make_move(){ 
     while(utils::elapsed_time() < 95'000){ 
-        for(int i = 0; i < 50; i++){
+        for(int i = 0; i < 20; i++){
             select();
             auto [win, vis] = expand();
             backtrack(win, vis);
         }  
     }
 
+    // for(int ddddddd = 0; ddddddd < 100; ddddddd++){
+    //     for(int i = 0; i < 81; i++){
+    //         select();
+    //         auto [win, vis] = expand();
+    //         backtrack(win, vis);
+    //     }  
+    // }
+
     // choose best move
-    int best_score = -inf, arg_best_score = 0;
-    for(uint_fast32_t i = nodes[struct_node::idx].offset; i < nodes[struct_node::idx].offset + nodes[struct_node::idx].size; i++){
-        if(nodes[i].wins > best_score){
-            best_score = nodes[i].wins;
+    int arg_best_score = 0;
+    double best_score = -inf;
+    for(uint_fast32_t i = nodes[Node::idx].offset; i < nodes[Node::idx].offset + nodes[Node::idx].size; i++){
+        double score = (double) nodes[i].wins / nodes[i].vis;
+        if(score > best_score){
+            best_score = score;
             arg_best_score = i;
         }
     }
 
     // make move
-    board[me].ultimate_board[nodes[arg_best_score].ultimate_row] |= nodes[arg_best_score].bit;
-    board[me].main_board |= nodes[arg_best_score].main_bit;
+    board[me].ultimate_board[nodes[arg_best_score].ultimate_row] |= (1 << nodes[arg_best_score].bit);
+    if(nodes[arg_best_score].main_bit != -1) board[me].main_board |= (1 << nodes[arg_best_score].main_bit);
 
     auto [row, col] = coord_of_pos[nodes[arg_best_score].ultimate_row][nodes[arg_best_score].bit];
     cout << row << ' ' << col << endl;
