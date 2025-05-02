@@ -4,7 +4,6 @@ using namespace std;
 
 #pragma GCC optimize("Ofast,inline,tracer")
 #pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops") 
-#pragma GCC target("arch=haswell,tune=haswell")
 
 /*
     game: ultimate tic tac toe
