@@ -1,9 +1,10 @@
 import subprocess 
 from typing import Tuple, List
 import concurrent.futures
+from game.response import Response
 
 class Comunicate:
-    def __init__(self, exec_path: str):
+    def __init__(self, exec_path: str, turbo_debug: bool):
         self.exec_path = exec_path 
         self.proc = subprocess.Popen(
             [self.exec_path], 
@@ -14,6 +15,7 @@ class Comunicate:
         )
         
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        self.turbo_debug = turbo_debug
         
     def kill(self):
         if self.proc and self.proc.poll() is None:
@@ -28,18 +30,9 @@ class Comunicate:
                 self.proc.stdin.write(f"{action[0]} {action[1]}\n")
             self.proc.stdin.flush()
     
-    def read_response(self) -> Tuple[int, int]:
-        try:
-            if self.proc.stdout:
-                response = self.proc.stdout.readline().strip()
-                if response:
-                    x, y = map(int, response.split())
-                    return x, y
-        except Exception as e:
-            raise ValueError(f"Error reading response: {e}")
-    
-    def get_message(self, timeout: float) -> Tuple[int, int]:
-        future = self.executor.submit(self.read_response)
+    def get_message(self, timeout: float) -> Response:
+        response = Response(self.proc, self.turbo_debug)
+        future = self.executor.submit(response.read)
         
         try:
             return future.result(timeout=timeout)

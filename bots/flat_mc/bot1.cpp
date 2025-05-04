@@ -14,6 +14,7 @@ using namespace std;
 
 //! consts
 constexpr bool debug = true;
+constexpr bool turbo_debug = true;
 constexpr bool test = true;
 constexpr int_fast32_t no_sim = 15;
 constexpr int_fast32_t inf = 1e9 + 7;
@@ -56,7 +57,14 @@ namespace utils{
     uint64_t seed=1;
     uint32_t randomRaw(){seed=(0x5DEECE66DUL * seed + 0xBUL) & ((1UL << 48) - 1); return(seed >> 16);}
     uint32_t random_with_boud(const uint bound){return (randomRaw() * uint64_t(bound)) >> 32;}
-    uint32_t random(){return (randomRaw() * uint64_t(82)) >> 32;}
+    uint32_t random(){
+        static random_device rd;
+        static mt19937 gen(rd());
+        uniform_int_distribution<uint32_t> dist(0, 81);
+        return dist(gen);
+        
+        // return (randomRaw() * uint64_t(82)) >> 32;
+    }
 
     bool all_on_red(double prob){
         return (double) random() / UINT32_MAX < prob;
@@ -119,6 +127,59 @@ namespace board{
 
         return winning_board[(copy_ultimate_board_foe[ultimate_row] & board_mask[ultimate_col]) >> (9 * ultimate_col)];
     }
+
+    static inline void print_ultimate_board(){
+        int matrix_ultimate_board[9][9];
+        for(int i = 0; i < 9; i++){
+            for(int j = 0; j < 9; j++){
+                auto [bit, ultimate_row] = pos_of_coord[i][j];
+                if(ultimate_board_me[ultimate_row] & (1 << bit) and ultimate_board_foe[ultimate_row] & (1 << bit)){
+                    cout << "PANIC4" << endl;
+                    exit(1);
+                } else if(ultimate_board_me[ultimate_row] & (1 << bit)){
+                    matrix_ultimate_board[i][j] = me;
+                } else if(ultimate_board_foe[ultimate_row] & (1 << bit)){
+                    matrix_ultimate_board[i][j] = foe;
+                } else{
+                    matrix_ultimate_board[i][j] = 2;
+                }
+            }
+        }
+
+        for(int i = 0; i < 9; i++){
+            for(int j = 0; j < 9; j++){
+                cout << matrix_ultimate_board[i][j] << ' ';
+            }
+            cout << endl;
+        }
+    }
+
+    static inline void print_main_board(){
+        int matrix_main_board[3][3];
+        for(int i = 0; i < 3; i++){
+            for(int j = 0; j < 3; j++){
+                auto [bit, ultimate_row] = pos_of_coord[i][j];
+
+                if(main_baord_me & (1 << bit) and main_baord_foe & (1 << bit)){
+                    cout << "PANIC5" << endl;
+                    exit(1);
+                } else if(main_baord_me & (1 << bit)){
+                    matrix_main_board[i][j] = me;
+                } else if(main_baord_foe & (1 << bit)){
+                    matrix_main_board[i][j] = foe;
+                } else{
+                    matrix_main_board[i][j] = 2;
+                }
+            }
+        }
+
+        for(int i = 0; i < 3; i++){
+            for(int j = 0; j < 3; j++){
+                cout << matrix_main_board[i][j] << ' ';
+            }
+            cout << endl;
+        }
+    }
 };
 
 //! global functions
@@ -144,7 +205,6 @@ int main(){
     while(true){
         get_input();
         utils::T0 = utils::get_time();
-
         make_move();
     }
 }
@@ -326,5 +386,10 @@ static void make_move(){
     if(board::check_for_win(me, ultiamte_row, bit / 9)){
         board::main_baord_me |= (1 << (3 * ultiamte_row + bit / 9));
     }
+
     cout << board::valid_pos_from_input[arg_best_score].first << ' ' << board::valid_pos_from_input[arg_best_score].second << endl;
+    if(turbo_debug){
+        board::print_ultimate_board();
+        board::print_main_board();
+    }
 }

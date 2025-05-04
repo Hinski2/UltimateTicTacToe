@@ -14,6 +14,7 @@ using namespace std;
 
 //! consts
 constexpr bool debug = true;
+constexpr bool turbo_debug = true;
 constexpr bool test = true;
 constexpr int_fast32_t no_sim = 5;
 constexpr int_fast32_t inf = 1e9 + 7;
@@ -58,7 +59,13 @@ namespace utils{
     uint64_t seed=1;
     uint32_t randomRaw(){seed=(0x5DEECE66DUL * seed + 0xBUL) & ((1UL << 48) - 1); return(seed >> 16);}
     uint32_t random_with_boud(const uint bound){return (randomRaw() * uint64_t(bound)) >> 32;}
-    uint32_t random(){return (randomRaw() * uint64_t(82)) >> 32;}
+    uint32_t random(){
+        static random_device rd;
+        static mt19937 gen(rd());
+        uniform_int_distribution<uint32_t> dist(0, 81);
+        return dist(gen);
+        // return (randomRaw() * uint64_t(82)) >> 32;
+    }
 
     bool all_on_red(double prob){
         return (double) random() / UINT32_MAX < prob;
@@ -167,6 +174,10 @@ static inline pair<uint_fast32_t, uint_fast32_t> get_next_board(uint_fast32_t bi
 // bots
 static inline int_fast32_t flat_mc(int player, uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols);
 static inline int_fast32_t simulate_till_end(int player, uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols);
+
+// debug
+static void print_ultimate_board();
+static void print_main_baord();
 
 static inline double uct(int_fast32_t idx, double c);
 static inline void select();
@@ -563,4 +574,61 @@ static void make_move(){
 
     auto [row, col] = coord_of_pos[nodes[arg_best_score].ultimate_row][nodes[arg_best_score].bit];
     cout << row << ' ' << col << endl;
+
+    if(turbo_debug){
+        print_ultimate_board();
+        print_main_baord();
+    }
+}
+
+static void print_ultimate_board(){
+    int matrix_ultimate_board[9][9];
+    for(int i = 0; i < 9; i++){
+        for(int j = 0; j < 9; j++){
+            auto [bit, ultimate_row] = pos_of_coord[i][j];
+            if(board[me].ultimate_board[ultimate_row] & (1 << bit) and board[foe].ultimate_board[ultimate_row] & (1 << bit)){
+                cout << "PANIC4" << endl;
+                exit(1);
+            } else if(board[me].ultimate_board[ultimate_row] & (1 << bit)){
+                matrix_ultimate_board[i][j] = me;
+            } else if(board[foe].ultimate_board[ultimate_row] & (1 << bit)){
+                matrix_ultimate_board[i][j] = foe;
+            } else {
+                matrix_ultimate_board[i][j] = 2;
+            }
+        }
+    }
+
+    for(int i = 0; i < 9; i++){
+        for(int j = 0; j < 9; j++){
+            cout << matrix_ultimate_board[i][j] << ' ';
+        }
+        cout << endl;
+    }
+}
+
+static void print_main_baord(){
+    int matrix_main_board[3][3];
+    for(int i = 0; i < 3; i++){
+        for(int j = 0; j < 3; j++){
+            auto [bit, ultimate_row] = pos_of_coord[i][j];
+            if(board[me].main_board & (1 << bit) and board[foe].main_board & 1 << bit){
+                cout << "PANIC5" << endl;
+                exit(1);
+            } else if(board[me].main_board & (1 << bit)){
+                matrix_main_board[i][j] = me;
+            } else if(board[foe].main_board & (1 << bit)){
+                matrix_main_board[i][j] = foe;
+            } else {
+                matrix_main_board[i][j] = 2;
+            }
+        }
+    }
+
+    for(int i = 0; i < 3; i++){
+        for(int j = 0; j < 3; j++){
+            cout << matrix_main_board[i][j] << ' ';
+        }
+        cout << endl;
+    }
 }

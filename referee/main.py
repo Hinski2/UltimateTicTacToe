@@ -1,5 +1,7 @@
 '''
-PYTHONDONTWRITEBYTECODE=1 python main.py --bot_0 "../bots/mcts/bot3.cpp" --bot_1 "../bots/mcts_tree_reuse/bot4.cpp" --games 100 --batch_size 25
+PYTHONDONTWRITEBYTECODE=1 python main.py --bot_0 "../bots/mcts/bot3.cpp" --bot_1 "../bots/mcts/bot3.cpp" --games 1000 --batch_size 50
+PYTHONDONTWRITEBYTECODE=1 python main.py --bot_0 "../bots/flat_mc/bot1.cpp" --bot_1 "../bots/flat_mc/bot1.cpp" --games 1000 --batch_size 50
+PYTHONDONTWRITEBYTECODE=1 python main.py --bot_0 "../bots/mcts/bot3.cpp" --bot_1 "../bots/mcts_tree_reuse/bot4.cpp" --games 1000 --batch_size 50
 '''
 from utils.compiler import Compiler
 from game.game import Game

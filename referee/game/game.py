@@ -1,7 +1,8 @@
 import random
-from typing import Tuple, List
 from game.comunicate import Comunicate
 from game.board import Board
+from game.response import Response
+from game.game_history import Game_history
 
 class Game:
     def __init__(self, bot_0_exec: str, bot_1_exec: str):
@@ -13,10 +14,11 @@ class Game:
         self.bot_x_exec = l[0]
         self.bot_o_exec = l[1]
         
-        self.board = Board() 
+        self.game_history = Game_history()
+        self.board = Board(self.game_history) 
         
-    def play_one_move(self, debug):
-        if self.current_player == 'x':
+    def play_one_move(self, debug: bool, turbo_debug: bool):
+        if self.board.current_player == 'x':
             comunicate = self.comunicate_x 
         else: 
             comunicate = self.comunicate_o
@@ -26,38 +28,55 @@ class Game:
         if debug:
             self.board.debug_print_next_moves(valid_actions, self.opponent_x, self.opponent_y)
         
-        comunicate.send_message(opponent_x, opponent_y, len(valid_actions), valid_actions)
-        [opponent_x, opponent_y] = comunicate.get_message(self.timeout)
+        comunicate.send_message(self.opponent_x, self.opponent_y, len(valid_actions), valid_actions)
+        try:
+            response: Response = comunicate.get_message(self.timeout)
+        except:
+            self.game_history.retrive_game()
+            raise
+        
+        self.opponent_x, self.opponent_y = response.move_x, response.move_y
+        self.game_history.add_move_to_history(self.opponent_x, self.opponent_y)
             
-        if not self.valid_move(opponent_x, opponent_y):
-            raise ValueError(f"innapropriate response {opponent_x} {opponent_y} from bot {comunicate.exec_path}")
+        if not self.board.valid_move(self.opponent_x, self.opponent_y, valid_actions):
+            self.game_history.retrive_game()
+            raise ValueError(f"innapropriate response {self.opponent_x} {self.opponent_y} from bot {comunicate.exec_path}")
 
-        self.make_move(opponent_x, opponent_y)
-        self.current_player = 'x' if self.current_player == 'o' else 'o'
+        self.board.make_move(self.opponent_x, self.opponent_y)
+        if turbo_debug:
+            response.decode_response(self.board.current_player, 'x' if self.board.current_player == 'o' else 'o', None)
+            self.board.validate_players_ultimate_board(response)
+            self.board.validate_players_main_board(response) 
+        
+        
+        self.board.current_player = 'x' if self.board.current_player == 'o' else 'o'
             
         self.moves_cnt += 1 
         if self.moves_cnt > 1:
             self.timeout = 0.2
         
-    def play_game(self, debug=True) -> tuple[int, int]:
-        self.comunicate_x = Comunicate(self.bot_x_exec)
-        self.comunicate_o = Comunicate(self.bot_o_exec)
+    def play_game(self, debug=False, turbo_debug=True) -> tuple[int, int]:
+        self.comunicate_x = Comunicate(self.bot_x_exec, turbo_debug)
+        self.comunicate_o = Comunicate(self.bot_o_exec, turbo_debug)
         
         self.opponent_x, self.opponent_y = -1, -1
         self.moves_cnt = 0
         self.timeout = 2.0
         
         while not self.board.end_game():
-            self.play_one_move(debug)
+            self.play_one_move(debug, turbo_debug)
+            
+        if debug:
+            self.board.debug_print_board()
         
-        winner = self.winner_of_subboard(self.main_board)
+        winner = self.board.winner_of_main_board()
         if winner is None:
             x, y = 0, 0
             for i in range(3):
                 for j in range(3):
-                    if self.main_board[i][j] == 'x':
+                    if self.board.main_board[i][j] == 'x':
                         x += 1 
-                    elif self.main_board[i][j] == 'o':
+                    elif self.board.main_board[i][j] == 'o':
                         y += 1 
             winner = 'x' if x >= y else 'o'
             
