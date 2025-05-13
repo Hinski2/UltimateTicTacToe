@@ -1,7 +1,8 @@
 '''
 PYTHONDONTWRITEBYTECODE=1 python main.py --bot_0 "../bots/mcts/bot3.cpp" --bot_1 "../bots/mcts/bot3.cpp" --games 1000 --batch_size 50
 PYTHONDONTWRITEBYTECODE=1 python main.py --bot_0 "../bots/flat_mc/bot1.cpp" --bot_1 "../bots/flat_mc/bot1.cpp" --games 1000 --batch_size 50
-PYTHONDONTWRITEBYTECODE=1 python main.py --bot_0 "../bots/mcts/bot3.cpp" --bot_1 "../bots/mcts_tree_reuse/bot4.cpp" --games 1000 --batch_size 50
+PYTHONDONTWRITEBYTECODE=1 python main.py --bot_0 "../bots/flat_mc/bot1.cpp" --bot_1 "../bots/mcts_tree_reuse/bot4.cpp" --games 1000 --batch_size 100
+PYTHONDONTWRITEBYTECODE=1 python main.py --bot_0 "../bots/mcts_tree_reuse/bot4.cpp" --bot_1 "../bots/mcts_tree_reuse/test.cpp" --games 1000 --batch_size 50
 '''
 from utils.compiler import Compiler
 from game.game import Game
@@ -28,12 +29,14 @@ def run_game(bot_0_exec: str, bot_1_exec: str) -> Tuple[int, int]:
 
 def run_multiple_games(bot_0_exec, bot_1_exec, games, batch_size):
     bot_0_score, bot_1_score = 0, 0
+    args = parse_args()
+    
     for _ in range((games + batch_size - 1) // batch_size):
         b0s, b1s = run_batch(bot_0_exec, bot_1_exec, min(games, batch_size))
         bot_0_score += b0s
         bot_1_score += b1s
         games -= batch_size
-        print(f"bot0 score: {bot_0_score}, bot1 score: {bot_1_score}")
+        print(f"bot0: {args.bot_0} score: {bot_0_score}, bot1: {args.bot_1} score: {bot_1_score}")
         
     return [bot_0_score, bot_1_score]
 
@@ -61,7 +64,14 @@ if __name__ == "__main__":
     batch_size = args.batch_size
     
     # compile bots 
-    flags = ["-std=c++20"]
+    flags = [
+        "-std=c++20",
+        "-fsanitize=address",     # AddressSanitizer: błędy dostępu do pamięci
+        "-fsanitize=undefined",   # UBsan: nieokreślone zachowania (dzielenie przez 0, signed overflow...)
+        "-fno-omit-frame-pointer",# lepsze stack trace'y
+        "-O2"
+    ]
+
     compiler = Compiler(bot_0_path, bot_1_path, flags)
     [bot_0_exec, bot_1_exec] = compiler.build()
     

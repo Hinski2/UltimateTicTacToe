@@ -10,7 +10,7 @@ class Game_history:
     def retrive_game(self):
         from game.board import Board
         with open("../logs.txt", "w") as f:
-            board = Board()
+            board = Board(history=self)
             
             last_x, last_y = -1, -1 
             for [x, y] in self.moves_history:

@@ -9,10 +9,10 @@ using namespace std;
 
 */
 
-#pragma GCC optimize("Ofast,inline,tracer")
-#pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops")
-#pragma GCC optimize("Ofast,inline,unroll-loops")
-#pragma GCC target("aes,abm,align-stringops,avx,avx2,bmi,bmi2,crc32,cx16,f16c,fma,fsgsbase,fxsr,hle,ieee-fp,lzcnt,mmx,movbe,mwait,pclmul,popcnt,rdrnd,sahf,sse,sse2,sse3,sse4,sse4.1,sse4.2,ssse3,xsave,xsaveopt") 
+// #pragma GCC optimize("Ofast,inline,tracer")
+// #pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops")
+// #pragma GCC optimize("Ofast,inline,unroll-loops")
+// #pragma GCC target("aes,abm,align-stringops,avx,avx2,bmi,bmi2,crc32,cx16,f16c,fma,fsgsbase,fxsr,hle,ieee-fp,lzcnt,mmx,movbe,mwait,pclmul,popcnt,rdrnd,sahf,sse,sse2,sse3,sse4,sse4.1,sse4.2,ssse3,xsave,xsaveopt") 
 
 //! consts
 // remember about random()
@@ -129,7 +129,10 @@ struct Node{
     int_fast32_t main_bit;              // new bit on a main_baord
 
     // moving
+    uint_fast32_t moves[3];             // moves to add
     int_fast32_t priev;                 // prievious state
+
+    int_fast32_t curr_free_idx;         // where i can add my next son
     int_fast32_t offset;                // where in nodes[] my children starts
     int_fast32_t size;                  // how many sons node has
 
@@ -165,7 +168,7 @@ struct Board{
 static inline void initialize();
 static inline void get_input();
 static inline void get_first_input();
-static inline void add_son(uint_fast32_t &moves, int_fast32_t ultimate_row, int_fast32_t player);
+static inline int_fast32_t add_son(uint_fast32_t &moves, int_fast32_t ultimate_row, int_fast32_t player);
 
 // moves utils
 static inline void generate_all_moves(uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols, array<uint_fast32_t, 3> &moves);
@@ -215,10 +218,10 @@ static inline void initialize(){
     Node::free_idx = 1;
 
     nodes[Node::root].priev = 0;
-    nodes[Node::root].wins = nodes[Node::root].vis = 0;
     nodes[Node::root].bit = nodes[Node::root].ultimate_row = nodes[Node::root].main_bit = -1;
     nodes[Node::root].player = foe;
     nodes[Node::root].offset = 1; // first childre in 1
+    nodes[Node::root].curr_free_idx = 1;
 
     get_first_input();
     utils::T0 = utils::get_time();
@@ -272,6 +275,8 @@ static inline void get_input(){
     if(add_sons){
         nodes[Node::root].size = s;
         nodes[Node::root].offset = Node::free_idx;
+        nodes[Node::root].curr_free_idx = Node::free_idx;
+        Node::free_idx += s;
     }
 
     for(uint_fast32_t i = 0; i < s; i++){
@@ -313,6 +318,8 @@ static inline void get_first_input(){
     }
 
     cin >> nodes[Node::root].size;
+    Node::free_idx += nodes[Node::root].size;
+
     if(debug){
         cerr << nodes[Node::root].size << endl;
     }
@@ -344,8 +351,10 @@ static inline void generate_all_moves_copy(uint_fast32_t next_ultimate_rows, uin
     }
 }
 
-static inline void generate_all_moves(uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols, array<uint_fast32_t, 3> &moves){
-    moves = {0, 0, 0};
+static inline void generate_all_moves(uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols){
+    uint_fast32_t (&moves)[3] = nodes[Node::idx].moves;
+
+    moves[0] = moves[1] = moves[2] = 0;
     uint_fast32_t start = (next_ultimate_rows == all ? 0 : next_ultimate_rows), end = (next_ultimate_rows == all ? 2 : next_ultimate_rows);
     for(; start <= end; start++){
         moves[start] = ~(board[me].ultimate_board[start] | board[foe].ultimate_board[start]);
@@ -449,11 +458,11 @@ static inline pair<uint_fast32_t, uint_fast32_t> get_next_board_copy(uint_fast32
 }
 
 static inline void select(){
-    while(nodes[Node::idx].size != 0){
+    while(nodes[Node::idx].size and !(nodes[Node::idx].moves[0] | nodes[Node::idx].moves[1] | nodes[Node::idx].moves[2])){
         double best_uct = -inf;
         int_fast32_t best_arg = 0;
 
-        const double c = 0.75 * sqrt(log(nodes[Node::idx].vis));
+        const double c = 0.75 * sqrt(log(nodes[Node::idx].vis + 1));
         for(int_fast32_t i = nodes[Node::idx].offset; i < nodes[Node::idx].offset + nodes[Node::idx].size; i++){
             double UCT = uct(i, c);
 
@@ -483,71 +492,70 @@ static inline void backtrack(int_fast32_t win, int_fast32_t vis){
     }
 }
 
-static inline void add_son(uint_fast32_t &moves, int_fast32_t ultimate_row, int_fast32_t player){
+static inline int_fast32_t add_son(uint_fast32_t &moves, int_fast32_t ultimate_row, int_fast32_t player){
+    int_fast32_t &pos = nodes[Node::idx].curr_free_idx;
+
     int_fast32_t bit = __builtin_ctz(moves);
-    nodes[Node::free_idx].priev = Node::idx;
-    nodes[Node::free_idx].bit = bit;
-    nodes[Node::free_idx].ultimate_row = ultimate_row;
-    nodes[Node::free_idx].size = 0;
-    nodes[Node::free_idx].player = player;
-    nodes[Node::free_idx].wins = nodes[Node::free_idx].vis = 0;
+    nodes[pos].priev = Node::idx;
+    nodes[pos].bit = bit;
+    nodes[pos].ultimate_row = ultimate_row;
+    nodes[pos].player = player;
 
     board[player].ultimate_board[ultimate_row] |= (1 << bit);
 
-    nodes[Node::free_idx].main_bit = board[player].check_for_win(ultimate_row, bit / 9) ? (3 * ultimate_row) + bit / 9 : -1;
-    if(nodes[Node::free_idx].main_bit != -1) board[player].main_board |= (1 << nodes[Node::free_idx].main_bit);
+    nodes[pos].main_bit = board[player].check_for_win(ultimate_row, bit / 9) ? (3 * ultimate_row) + bit / 9 : -1;
+    if(nodes[pos].main_bit != -1) board[player].main_board |= (1 << nodes[pos].main_bit);
 
     auto [next_ultimate_rows, next_ultimate_cols] = get_next_board(bit);
-    nodes[Node::free_idx].vis = no_sim;
-    nodes[Node::free_idx].wins = flat_mc(player^1, next_ultimate_rows, next_ultimate_cols);
+    nodes[pos].vis = no_sim;
+    nodes[pos].wins = flat_mc(player^1, next_ultimate_rows, next_ultimate_cols);
 
 
     board[player].ultimate_board[ultimate_row] ^= (1 << bit);
-    if(nodes[Node::free_idx].main_bit != -1) board[player].main_board ^= (1 << nodes[Node::free_idx].main_bit);
+    if(nodes[pos].main_bit != -1) board[player].main_board ^= (1 << nodes[pos].main_bit);
 
-    nodes[Node::idx].wins += nodes[Node::free_idx].wins;
-    nodes[Node::idx].vis += nodes[Node::free_idx].vis;
+    nodes[Node::idx].wins += nodes[pos].wins;
+    nodes[Node::idx].vis += nodes[pos].vis;
 
     moves ^= (1 << bit); 
-    Node::free_idx++; 
-    if(test and Node::free_idx + 10'000 > max_nodes){
+    if(test and pos + 10'000 > max_nodes){
         cout << "PANIC7" << endl;
     }
+
+    return nodes[pos++].wins;
 }
 
 static inline pair<int_fast32_t, int_fast32_t> expand(){
-    int_fast32_t prev_w = nodes[Node::idx].wins;
-    int_fast32_t prev_v = nodes[Node::idx].vis;
-
-    array<uint_fast32_t, 3> moves;
     auto [next_ultimate_rows, next_ultimate_cols] = get_next_board(nodes[Node::idx].bit);
-    generate_all_moves(next_ultimate_rows, next_ultimate_cols, moves);
+    if(nodes[Node::idx].size == 0){
+        generate_all_moves(next_ultimate_rows, next_ultimate_cols);
+        nodes[Node::idx].offset = Node::free_idx;
+        nodes[Node::idx].curr_free_idx = Node::free_idx;
+        nodes[Node::idx].size = 0;
+        Node::free_idx += __builtin_popcountll(nodes[Node::idx].moves[0]) + __builtin_popcountll(nodes[Node::idx].moves[1]) + __builtin_popcountll(nodes[Node::idx].moves[2]);
+    }
 
     int_fast32_t player = nodes[Node::idx].player ^ 1;
-    nodes[Node::idx].offset = Node::free_idx;
-    nodes[Node::idx].size = __builtin_popcountll(moves[0]) + __builtin_popcountll(moves[1]) + __builtin_popcountll(moves[2]);
+    int_fast32_t wins;
+    if(nodes[Node::idx].moves[0]){
+        wins = add_son(nodes[Node::idx].moves[0], 0, player);
+        nodes[Node::idx].size++;
+    } else if(nodes[Node::idx].moves[1]) {
+        wins = add_son(nodes[Node::idx].moves[1], 1, player);
+        nodes[Node::idx].size++;
+    } else if(nodes[Node::idx].moves[2]) {
+        wins = add_son(nodes[Node::idx].moves[2], 2, player);
+        nodes[Node::idx].size++;
+    } else {
+        if(Board::winning_board[board[me].main_board]) wins = no_sim;
+        else if(Board::winning_board[board[foe].main_board]) wins = -no_sim;
+        else wins = __builtin_popcountll(board[me].main_board) > __builtin_popcountll(board[foe].main_board) ?  no_sim : -no_sim;
 
-    while(moves[0]){
-        add_son(moves[0], 0, player);
-    }
-
-    while(moves[1]){
-        add_son(moves[1], 1, player);
-    }
-
-    while(moves[2]){
-        add_son(moves[2], 2, player);
-    }
-
-    if(nodes[Node::idx].size == 0){
-        if(Board::winning_board[board[me].main_board]) nodes[Node::idx].wins += no_sim;
-        else if(Board::winning_board[board[foe].main_board]) nodes[Node::idx].wins -= no_sim;
-        else nodes[Node::idx].wins += __builtin_popcountll(board[me].main_board) > __builtin_popcountll(board[foe].main_board) ?  no_sim : -no_sim;
-
+        nodes[Node::idx].wins += wins;
         nodes[Node::idx].vis += no_sim;
     }
 
-    return {nodes[Node::idx].wins - prev_w, nodes[Node::idx].vis - prev_v};
+    return {wins, no_sim};
 }
 
 static void make_move(){ 

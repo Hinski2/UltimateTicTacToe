@@ -55,7 +55,7 @@ class Game:
         if self.moves_cnt > 1:
             self.timeout = 0.2
         
-    def play_game(self, debug=False, turbo_debug=True) -> tuple[int, int]:
+    def play_game(self, debug=False, turbo_debug=False) -> tuple[int, int]:
         self.comunicate_x = Comunicate(self.bot_x_exec, turbo_debug)
         self.comunicate_o = Comunicate(self.bot_o_exec, turbo_debug)
         
