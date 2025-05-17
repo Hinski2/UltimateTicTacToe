@@ -4,15 +4,14 @@ using namespace std;
 
 /*
     game: ultimate tic tac toe
-    algoright: mcts
-    performacne: 267
-
+    algoright: mcts + tree reuse
+    performance: ? 
 */
 
-// #pragma GCC optimize("Ofast,inline,tracer")
-// #pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops")
-// #pragma GCC optimize("Ofast,inline,unroll-loops")
-// #pragma GCC target("aes,abm,align-stringops,avx,avx2,bmi,bmi2,crc32,cx16,f16c,fma,fsgsbase,fxsr,hle,ieee-fp,lzcnt,mmx,movbe,mwait,pclmul,popcnt,rdrnd,sahf,sse,sse2,sse3,sse4,sse4.1,sse4.2,ssse3,xsave,xsaveopt") 
+#pragma GCC optimize("Ofast,inline,tracer")
+#pragma GCC optimize("unroll-loops,vpt,split-loops,unswitch-loops")
+#pragma GCC optimize("Ofast,inline,unroll-loops")
+#pragma GCC target("aes,abm,align-stringops,avx,avx2,bmi,bmi2,crc32,cx16,f16c,fma,fsgsbase,fxsr,hle,ieee-fp,lzcnt,mmx,movbe,mwait,pclmul,popcnt,rdrnd,sahf,sse,sse2,sse3,sse4,sse4.1,sse4.2,ssse3,xsave,xsaveopt") 
 
 //! consts
 // remember about random()
@@ -21,7 +20,7 @@ constexpr bool turbo_debug = false;
 constexpr bool test = true;
 constexpr int_fast32_t no_sim = 1;
 constexpr int_fast32_t inf = 1e9 + 7;
-constexpr int_fast32_t max_nodes = 1'000'000;
+constexpr int_fast32_t max_nodes = 3'000'000;
 int_fast32_t m_time = 990'000;
 
 //! enums
@@ -65,11 +64,11 @@ namespace utils{
         return (randomRaw() * uint64_t(bound)) >> 32;
     }
     uint32_t random(){
-        // static random_device rd;
-        // static mt19937 gen(rd());
-        // uniform_int_distribution<uint32_t> dist(0, 81);
-        // return dist(gen);
-        return (randomRaw() * uint64_t(82)) >> 32;
+        static random_device rd;
+        static mt19937 gen(rd());
+        uniform_int_distribution<uint32_t> dist(0, 81);
+        return dist(gen);
+        // return (randomRaw() * uint64_t(82)) >> 32;
     }
 
     bool all_on_red(double prob){
@@ -271,33 +270,11 @@ static inline void get_input(){
     }
 
 
-    bool add_sons = nodes[Node::root].size == 0;
-    if(add_sons){
-        nodes[Node::root].size = s;
-        nodes[Node::root].offset = Node::free_idx;
-        nodes[Node::root].curr_free_idx = Node::free_idx;
-        Node::free_idx += s;
-    }
-
     for(uint_fast32_t i = 0; i < s; i++){
         cin >> row >> col;
         if(debug){
             cerr << row << ' ' << col << endl;
         }
-        if(add_sons){
-            auto [bit, ultiamte_row] = pos_of_coord[row][col];
-            bit = 1 << bit;
-            add_son(bit, ultiamte_row, me);
-        }
-
-        if(test){
-            auto [bit, ultimate_row] = pos_of_coord[row][col];
-            debug_check_if_contains_son(bit, ultimate_row);
-        }
-    }
-
-    if(test and nodes[Node::root].size != s){
-        cout << "PANIC2 " << s << ' ' << nodes[Node::root].size << endl;
     }
 }
 
@@ -367,12 +344,6 @@ static inline void generate_all_moves(uint_fast32_t next_ultimate_rows, uint_fas
     }
 }
 
-static inline uint32_t pick_random_bit(uint32_t mask, int cnt) {
-    int r = utils::random_with_boud(cnt);
-    while(r--) mask &= mask - 1;
-    return mask & -mask;
-}
-
 static inline int_fast32_t simulate_till_end(int player, uint_fast32_t next_ultimate_rows, uint_fast32_t next_ultimate_cols){
     int ok_moves_cnt;
     array<uint_fast32_t, 3> ok_moves;
@@ -388,7 +359,7 @@ static inline int_fast32_t simulate_till_end(int player, uint_fast32_t next_ulti
 
         // get random move
         const int_fast32_t board_idx = ok_moves[utils::random_with_boud(ok_moves_cnt)];
-        const int_fast32_t move = pick_random_bit(moves[board_idx], __builtin_popcountll(moves[board_idx]));
+        const int_fast32_t move = _pdep_u32(1u << (utils::random() % __builtin_popcountll(moves[board_idx])), moves[board_idx]);
         const int_fast32_t log2move = __builtin_ctz(move);
         
         board[player].copy_ultimate_board[board_idx] |= (1 << log2move);
@@ -462,7 +433,7 @@ static inline void select(){
         double best_uct = -inf;
         int_fast32_t best_arg = 0;
 
-        const double c = 0.75 * sqrt(log(nodes[Node::idx].vis + 1));
+        const double c = 1.41 * sqrt(log(nodes[Node::idx].vis + 1));
         for(int_fast32_t i = nodes[Node::idx].offset; i < nodes[Node::idx].offset + nodes[Node::idx].size; i++){
             double UCT = uct(i, c);
 
