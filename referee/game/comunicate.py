@@ -4,10 +4,11 @@ import concurrent.futures
 from game.response import Response
 
 class Comunicate:
-    def __init__(self, exec_path: str, turbo_debug: bool):
+    def __init__(self, exec_path: str, turbo_debug: bool, seed: int):
         self.exec_path = exec_path 
+        self.seed = seed
         self.proc = subprocess.Popen(
-            [self.exec_path], 
+            [self.exec_path, str(self.seed)], 
             stdin=subprocess.PIPE, 
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -19,7 +20,13 @@ class Comunicate:
         
     def kill(self):
         if self.proc and self.proc.poll() is None:
-            self.proc.kill()
+            self.proc.terminate()
+            
+            try:
+                self.proc.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+                
         self.executor.shutdown(wait=False)
     
     def send_message(self, opponent_x: int, opponent_y: int, valid_actions_no: int, valid_actions: List[Tuple[int, int]]):

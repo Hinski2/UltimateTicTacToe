@@ -5,14 +5,13 @@ from game.response import Response
 from game.game_history import Game_history
 
 class Game:
-    def __init__(self, bot_0_exec: str, bot_1_exec: str):
+    def __init__(self, bot_0_exec: str, bot_1_exec: str, seed: int):
         self.bot_0_exec = bot_0_exec
         self.bot_1_exec = bot_1_exec
+        self.seed = seed
         
-        l = [bot_0_exec, bot_1_exec]
-        random.shuffle(l)
-        self.bot_x_exec = l[0]
-        self.bot_o_exec = l[1]
+        self.bot_x_exec = bot_0_exec if seed % 2 == 1 else bot_1_exec
+        self.bot_o_exec = bot_1_exec if seed % 2 == 1 else bot_0_exec
         
         self.game_history = Game_history()
         self.board = Board(self.game_history) 
@@ -52,12 +51,10 @@ class Game:
         self.board.current_player = 'x' if self.board.current_player == 'o' else 'o'
             
         self.moves_cnt += 1 
-        if self.moves_cnt > 1:
-            self.timeout = 0.2
         
     def play_game(self, debug=False, turbo_debug=False) -> tuple[int, int]:
-        self.comunicate_x = Comunicate(self.bot_x_exec, turbo_debug)
-        self.comunicate_o = Comunicate(self.bot_o_exec, turbo_debug)
+        self.comunicate_x = Comunicate(self.bot_x_exec, turbo_debug, self.seed)
+        self.comunicate_o = Comunicate(self.bot_o_exec, turbo_debug, self.seed)
         
         self.opponent_x, self.opponent_y = -1, -1
         self.moves_cnt = 0

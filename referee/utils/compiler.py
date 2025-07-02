@@ -8,7 +8,7 @@ class Compiler:
         self.flags = flags or []
         
     
-    def build(self) -> Tuple[str, str]:
+    def build(self) -> List[str]:
         self._compile_bots(self.bot_0_path, "bot_0")
         self._compile_bots(self.bot_1_path, "bot_1")
         
