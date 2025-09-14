@@ -14,8 +14,8 @@ import sys
 sys.dont_write_bytecode = True
 
 args = {
-    "bot0": "../bots/mcts_heura/test.cpp",
-    "bot1": "../bots/mcts_heura/bot7.cpp",
+    "bot0": "../bots/mcts_heura/bot8.cpp",
+    "bot1": "../bots/mcts_heura/test.cpp",
     "games": 2500,
     "batch_size": 100,
 }
