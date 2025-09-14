@@ -420,8 +420,11 @@ static int_fast32_t flat_mc(int player, uint_fast32_t next_ultimate_rows, uint_f
     
     for(uint_fast32_t i = 0; i < no_sim; i++){
         // copy
-        memcpy(board[foe].copy_ultimate_board, board[foe].ultimate_board, 3 * sizeof(board[0].ultimate_board[0]));
-        memcpy(board[me].copy_ultimate_board, board[me].ultimate_board, 3 * sizeof(board[0].ultimate_board[0]));
+        for(uint_fast32_t j = 0; j < 3; j++){
+            board[foe].copy_ultimate_board[j] = board[foe].ultimate_board[j];
+            board[me].copy_ultimate_board[j] = board[me].ultimate_board[j];
+        }
+
         board[me].copy_main_board = board[me].main_board;
         board[foe].copy_main_board = board[foe].main_board;
 
@@ -434,8 +437,12 @@ static int_fast32_t flat_mc(int player, uint_fast32_t next_ultimate_rows, uint_f
 
 // returns {next_ultimate_rows, next_ultimate_rows}
 static inline pair<uint_fast32_t, uint_fast32_t> get_next_board(uint_fast32_t bit){
-    uint_fast32_t next_ultiamte_row = (bit % 9) / 3;
-    uint_fast32_t next_ultimate_col = bit % 3;
+    static constexpr int_fast32_t N_ROW[] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 0, 0, 1, 1, 1, 2, 2, 2};
+    static constexpr int_fast32_t N_COL[] = {0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2};
+
+
+    uint_fast32_t next_ultiamte_row = N_ROW[bit];
+    uint_fast32_t next_ultimate_col = N_COL[bit];
 
     // if subgame is finished
     if(board[foe].main_board & (1 << (next_ultiamte_row * 3 + next_ultimate_col)) or board[me].main_board & (1 << (next_ultiamte_row * 3 + next_ultimate_col)))
@@ -449,8 +456,12 @@ static inline pair<uint_fast32_t, uint_fast32_t> get_next_board(uint_fast32_t bi
 }
 
 static inline pair<uint_fast32_t, uint_fast32_t> get_next_board_copy(uint_fast32_t bit){
-    uint_fast32_t next_ultiamte_row = (bit % 9) / 3;
-    uint_fast32_t next_ultimate_col = bit % 3;
+    static constexpr uint_fast32_t N_ROW[] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 0, 0, 1, 1, 1, 2, 2, 2};
+    static constexpr uint_fast32_t N_COL[] = {0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2};
+
+
+    uint_fast32_t next_ultiamte_row = N_ROW[bit];
+    uint_fast32_t next_ultimate_col = N_COL[bit];
 
     // if subgame is finished
     if(board[foe].copy_main_board & (1 << (next_ultiamte_row * 3 + next_ultimate_col)) or board[me].copy_main_board & (1 << (next_ultiamte_row * 3 + next_ultimate_col)))
@@ -555,9 +566,9 @@ static inline pair<int_fast32_t, int_fast32_t> expand(){
     }
 
     if(nodes[Node::idx].size == 0){
-        if(Board::winning_board[board[me].main_board]) nodes[Node::idx].wins += no_sim;
-        else if(Board::winning_board[board[foe].main_board]) nodes[Node::idx].wins -= no_sim;
-        else nodes[Node::idx].wins += __builtin_popcountll(board[me].main_board) > __builtin_popcountll(board[foe].main_board) ?  no_sim : -no_sim;
+        if(Board::winning_board[board[me].main_board]) nodes[Node::idx].wins += 1000;
+        else if(Board::winning_board[board[foe].main_board]) nodes[Node::idx].wins -= 1000;
+        else nodes[Node::idx].wins += __builtin_popcountll(board[me].main_board) > __builtin_popcountll(board[foe].main_board) ?  1000 : -1000;
 
         nodes[Node::idx].vis += no_sim;
     }
@@ -568,7 +579,7 @@ static inline pair<int_fast32_t, int_fast32_t> expand(){
 static void make_move(){ 
     if(!test_localy) {
         while(utils::elapsed_time() < m_time) { 
-            for(int i = 0; i < 50; i++){
+            for(int i = 0; i < 20; i++){
                 select();
                 auto [win, vis] = expand();
                 backtrack(win, vis);
